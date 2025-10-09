@@ -1,4 +1,18 @@
-.ipynb_checkpoints
-tags
+
+# Python Virtual Environments
+venv/
+.venv/
+env/
+.env/
+
+# Python cache files
+__pycache__/
 *.pyc
-__pycache__
+
+# IDE and editor folders
+.vscode/
+.idea/
+
+# Operating System files
+.DS_Store
+Thumbs.db

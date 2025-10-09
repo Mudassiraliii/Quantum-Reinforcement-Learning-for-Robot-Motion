@@ -1,0 +1,7 @@
+LICENSE
+README.md
+setup.py
+qturtle.egg-info/PKG-INFO
+qturtle.egg-info/SOURCES.txt
+qturtle.egg-info/dependency_links.txt
+qturtle.egg-info/top_level.txt

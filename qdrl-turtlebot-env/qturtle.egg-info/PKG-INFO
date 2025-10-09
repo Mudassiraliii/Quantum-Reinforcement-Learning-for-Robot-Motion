@@ -1,0 +1,10 @@
+Metadata-Version: 1.0
+Name: qturtle
+Version: 0.1
+Summary: Pybullet envs for Turtlebot 2e
+Home-page: https://github.com/dfki-ric-quantum/qdrl-turtlebot-env
+Author: Hans Hohenfeld
+Author-email: hans.hohenfeld@uni-bremen.de
+License: UNKNOWN
+Description: UNKNOWN
+Platform: UNKNOWN

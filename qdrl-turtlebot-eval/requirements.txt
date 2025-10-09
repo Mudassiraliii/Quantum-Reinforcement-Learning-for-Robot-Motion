@@ -1,0 +1,13 @@
+# Modern, compatible framework versions
+tensorflow
+tf-agents
+
+# Qiskit Packages
+qiskit
+qiskit-aer
+qiskit-machine-learning
+
+# Other dependencies
+numpy<1.24
+pybullet
+gin-config
