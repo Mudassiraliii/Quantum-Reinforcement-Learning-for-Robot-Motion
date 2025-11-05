@@ -1,49 +1,46 @@
 from qiskit.quantum_info import SparsePauliOp
 
+
 def create_measurement(num_qubits=3, env='qturtle'):
     """
-    Creates a list of measurement operators (observables) using Qiskit.
-
-    Args:
-        num_qubits: The number of qubits in the circuit.
-        env: The name of the environment, which determines the measurement strategy.
-
-    Returns:
-        A list of SparsePauliOp objects representing the observables.
+    Creates the measurement observables as a list of Qiskit SparsePauliOp.
     """
     measurement = []
 
     if env == 'FrozenLake-v1' and num_qubits == 4:
-        # Z measurement on each of the 4 qubits
-        measurement.append(SparsePauliOp('IIIZ'))
-        measurement.append(SparsePauliOp('IIZI'))
-        measurement.append(SparsePauliOp('IZII'))
-        measurement.append(SparsePauliOp('ZIII'))
+        # Replaces:
+        # cirq.Z(qubits[0]) -> "IIIZ" (Z on qubit 0, I on 1, 2, 3)
+        # cirq.Z(qubits[1]) -> "IIZI"
+        # cirq.Z(qubits[2]) -> "IZII"
+        # cirq.Z(qubits[3]) -> "ZIII"
+        # Note: Qiskit's string order is read from right-to-left (qubit 0 is the rightmost char).
+        measurement.append(SparsePauliOp("IIIZ"))
+        measurement.append(SparsePauliOp("IIZI"))
+        measurement.append(SparsePauliOp("IZII"))
+        measurement.append(SparsePauliOp("ZIII"))
 
     elif env == 'CartPole-v1' and num_qubits == 4:
-        # ZZ measurement on qubit pairs (0,1) and (2,3)
-        measurement.append(SparsePauliOp('IIZZ'))
-        measurement.append(SparsePauliOp('ZZII'))
+        # Replaces:
+        # cirq.Z(qubits[0]) * cirq.Z(qubits[1]) -> "IIZZ"
+        # cirq.Z(qubits[2]) * cirq.Z(qubits[3]) -> "ZZII"
+        measurement.append(SparsePauliOp("IIZZ"))
+        measurement.append(SparsePauliOp("ZZII"))
 
-    elif num_qubits == 3 or num_qubits == 12:
-        # Z measurement on the first 3 qubits
+    elif num_qubits == 3:
+        # Replaces cirq.Z(qubits[0]), Z(qubits[1]), Z(qubits[2])
+        measurement.append(SparsePauliOp("IIZ"))
+        measurement.append(SparsePauliOp("IZI"))
+        measurement.append(SparsePauliOp("ZII"))
         
-        # Observable for Z on qubit 0
-        op_0 = ['I'] * num_qubits
-        op_0[0] = 'Z'
-        measurement.append(SparsePauliOp("".join(reversed(op_0))))
-
-        # Observable for Z on qubit 1
-        op_1 = ['I'] * num_qubits
-        op_1[1] = 'Z'
-        measurement.append(SparsePauliOp("".join(reversed(op_1))))
-
-        # Observable for Z on qubit 2
-        op_2 = ['I'] * num_qubits
-        op_2[2] = 'Z'
-        measurement.append(SparsePauliOp("".join(reversed(op_2))))
+    elif num_qubits == 12:
+        # This is a bit ambiguous, but assuming Z on first 3 qubits
+        measurement.append(SparsePauliOp("I" * 11 + "Z")) # Z on qubit 0
+        measurement.append(SparsePauliOp("I" * 10 + "ZI")) # Z on qubit 1
+        measurement.append(SparsePauliOp("I" * 9 + "ZII")) # Z on qubit 2
 
     else:
-        raise ValueError(f"Measurement not defined for env {env} and num_qubits {num_qubits}.")
+        raise ValueError(
+            f"Measurement not defined for env {env} and num_qubits {num_qubits}."
+        )
 
     return measurement
