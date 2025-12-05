@@ -1,22 +1,11 @@
 import numpy as np
 import tensorflow as tf  # type: ignore
-
-# --- New Qiskit Imports ---
-from qiskit import QuantumCircuit
-from qiskit.quantum_info import SparsePauliOp
-from qiskit.circuit import Parameter
 from qiskit_machine_learning.neural_networks import EstimatorQNN
-from qiskit_machine_learning.connectors import TensorFlowConnector
-# --- End New Imports ---
-
 
 class Input_Layer(tf.keras.layers.Layer):
-    """
-    This class is unchanged. It's pure TensorFlow.
-    """
     def __init__(
         self,
-        input_symbols,  # In Step 5, we'll see this is now a list[Parameter]
+        input_symbols,
         n_input,
         activation=tf.math.atan,
         trainable_input=True,
@@ -24,9 +13,7 @@ class Input_Layer(tf.keras.layers.Layer):
         specific_training=False,
         **kwargs
     ):
-
         super().__init__(**kwargs)
-
         self.input_symbols = input_symbols
         self.n_input = n_input
         self.activation = activation
@@ -99,53 +86,87 @@ class Input_Layer(tf.keras.layers.Layer):
 
 
 class PQC_customized(tf.keras.layers.Layer):
-    """
-    --- THIS IS THE NEW, REWRITTEN CLASS ---
-    It replaces the old PQC_customized and removes all tfq logic.
-    """
     def __init__(
         self,
-        model_circuit: QuantumCircuit,
-        input_symbols: list[Parameter],
-        circuit_symbols: list[Parameter],
-        operators: list[SparsePauliOp],
+        model_circuit,
+        input_symbols,
+        circuit_symbols,
+        operators,
         initializer=tf.keras.initializers.RandomUniform(0, np.pi),
         **kwargs
     ):
         super().__init__(**kwargs)
-        
-        # 1. Create the EstimatorQNN (the "brain")
         self.qnn = EstimatorQNN(
             circuit=model_circuit,
             observables=operators,
             input_params=input_symbols,
             weight_params=circuit_symbols,
+            input_gradients=True,
         )
-
-        # 2. Set the initial weights for the trainable circuit parameters
-        initial_weights = initializer(shape=(len(circuit_symbols),))
-
-        # 3. Create the TensorFlowConnector (the Keras Layer)
-        # This connector will automatically manage the circuit's trainable
-        # weights (`circuit_symbols`) as Keras trainable variables.
-        self.computation_layer = TensorFlowConnector(
-            self.qnn,
-            initial_weights=initial_weights
+        self.circuit_parameters = self.add_weight(
+            "circuit_parameters",
+            shape=(len(circuit_symbols),),
+            initializer=initializer,
+            dtype=tf.float32,
+            trainable=True,
         )
 
     def call(self, inputs):
-        """
-        The new call method is extremely simple.
-        We just pass the inputs from the Input_Layer
-        directly to the TensorFlowConnector.
-        """
-        return self.computation_layer(inputs)
+        @tf.custom_gradient
+        def forward_pass(in_data, weights):
+            def _run_forward(i_d, w):
+                return np.array(self.qnn.forward(i_d, w), dtype=np.float32)
+
+            output = tf.numpy_function(_run_forward, [in_data, weights], tf.float32)
+            output.set_shape((None, self.qnn.output_shape[0]))
+
+            def backward_pass(upstream_grads):
+                def _run_backward(in_d, w, g):
+                    in_grad, w_grad = self.qnn.backward(in_d, w)
+
+                    if in_grad is not None and in_grad.ndim == 3:
+                         in_grad_tf = np.einsum("bj,bji->bi", g, in_grad)
+                    elif in_grad is not None:
+                         if in_grad.shape[0] == g.shape[0]: 
+                              if g.shape[1] == 1:
+                                  in_grad_tf = g * in_grad
+                              else:
+                                  in_grad_tf = in_grad 
+                         else:
+                              in_grad_tf = g @ in_grad
+                    else:
+                         in_grad_tf = np.zeros_like(in_d)
+
+                    if w_grad is not None and w_grad.ndim == 3:
+                         w_grad_tf = np.einsum("bj,bji->i", g, w_grad)
+                    elif w_grad is not None and w_grad.ndim == 2:
+                        if w_grad.shape[0] == g.shape[0]:
+                             if g.shape[1] == 1:
+                                  w_grad_tf = np.sum(g * w_grad, axis=0)
+                             else:
+                                  w_grad_tf = np.sum(w_grad, axis=0)
+                        else:
+                             w_grad_tf = np.einsum("bj,ji->i", g, w_grad)
+                    else:
+                         w_grad_tf = np.zeros_like(w)
+
+                    return np.array(in_grad_tf, dtype=np.float32), np.array(
+                        w_grad_tf, dtype=np.float32
+                    )
+
+                input_grads, weight_grads = tf.numpy_function(
+                    _run_backward,
+                    [in_data, weights, upstream_grads],
+                    [tf.float32, tf.float32],
+                )
+                return input_grads, weight_grads
+
+            return output, backward_pass
+
+        return forward_pass(inputs, self.circuit_parameters)
 
 
 class Output_Layer(tf.keras.layers.Layer):
-    """
-    This class is also unchanged. It's pure TensorFlow.
-    """
     def __init__(self, units, rescale=False, trainable_output=True, **kwargs):
 
         super().__init__(**kwargs)

@@ -1,9 +1,5 @@
-import tensorflow as tf
-from tf_agents.networks import sequential
-
-from qeval.quantum_circuit import create_reupload_circuit
-from qeval.quantum_layer import Input_Layer, Output_Layer, PQC_Qiskit
-from qeval.quantum_measurement import create_measurement
+import tensorflow as tf  # type: ignore
+from tf_agents.networks import sequential  # type: ignore
 
 
 def create_classical_model(n_actions, layers):
@@ -13,7 +9,9 @@ def create_classical_model(n_actions, layers):
     dense_layers = [
         tf.keras.layers.Dense(num_units, activation="relu") for num_units in layers
     ]
+
     q_values_layer = tf.keras.layers.Dense(n_actions, activation="linear")
+
     return sequential.Sequential(dense_layers + [q_values_layer])
 
 
@@ -32,6 +30,9 @@ def create_quantum_model(
     env="qturtle",
     trainable_output=True,
 ):
+    from qeval.quantum_circuit import create_reupload_circuit
+    from qeval.quantum_layer import Input_Layer, Output_Layer, PQC_customized
+    from qeval.quantum_measurement import create_measurement
 
     input_symbols, trainable_symbols, circuit = create_reupload_circuit(
         num_qubits=n_qubits,
@@ -54,15 +55,20 @@ def create_quantum_model(
         name="specific_input",
     )
 
-    circuit_layer = PQC_Qiskit(
+    circuit_layer = PQC_customized(
         model_circuit=circuit,
-        operators=measurement,
         input_symbols=input_symbols,
         circuit_symbols=trainable_symbols,
-        name="pqc_circuit",
+        operators=measurement,
+        name="pqc_circuit"
     )
 
-    flattening_layer = tf.keras.layers.Dense(n_actions)
+    output_layer = Output_Layer(
+        units=n_actions,
+        rescale=rescale,
+        trainable_output=trainable_output,
+        name="specific_output",
+    )
 
-    return sequential.Sequential([input_layer] + [circuit_layer] + [flattening_layer])
+    return sequential.Sequential([input_layer] + [circuit_layer] + [output_layer])
 
